@@ -18,7 +18,9 @@ postsRouter.get('/:postId', async(req, res) => {
 
     try {
         const postId = req.params.postId;
-        const response = await postsService.selectPost(postId);
+        console.log("Debug : ", postId);
+        const response = await postsService.findOnePost(postId);
+        console.log("Debug : ", response);
     
         res.json(response).status(200);
     } catch (err) {

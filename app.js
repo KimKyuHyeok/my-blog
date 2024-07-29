@@ -7,12 +7,12 @@ const session = require('express-session');
 const cors = require('cors');
 const app = express();
 
-const port = 80;
+const port = 8080;
 
 /* Options */
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:8080' ,
+    origin: 'http://localhost' ,
     // credentials: true
 }));
 app.set('view engine', 'ejs');
