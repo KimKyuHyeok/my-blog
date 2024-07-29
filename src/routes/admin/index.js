@@ -2,116 +2,130 @@ const { Router } = require('express');
 const Posts = require('../../models/posts.model');
 const categoryService = require('../../service/category.service');
 const postsService = require('../../service/posts.service');
-const isAuth = require('../middleware/auth');
+const authenticateJwt = require('../middleware/auth');
 const { upload, s3 } = require('../../config/image');
 const { Upload } = require('@aws-sdk/lib-storage');
 const { randomUUID } = require('crypto');
 const path = require('path');
 
 const adminRouter = Router();
+// ref
 
-adminRouter.post('/password', async(req, res, next) => {
-    const password = req.body.password;
-    const confirm = process.env.ADMIN_PASSWORD;
 
-    if (password === confirm) {
-        req.session.authenticated = true;
-        res.redirect('/admin');
-    } else {
-        res.render('admin/alert', {success: '비밀번호가 틀렸습니다.'});
-    }
-    next();
-});
+// [API] Category
 
-adminRouter.get('/', isAuth, async(req, res) => {
-    const categories = await categoryService.sideMenuList();
-
-    res.render('admin/index', {
-        categories: categories
-    })
-})
-
-adminRouter.post('/subCategory/add', isAuth, async(req, res) => {
-    const addTitle = req.body.title;
-    const mainId = req.body.mainId;
-    categoryService.addSubCategory(addTitle, mainId);
-
-    res.render('admin/alert', {success: '업로드가 완료되었습니다.'});
-})
-
-adminRouter.post('/subCategory/update', isAuth, async(req, res) => {
-    const updateTitle = req.body.title;
-    const subId = req.body.subId;
-    categoryService.updateSubCategory(updateTitle, subId);
-
-    res.render('admin/alert', {success: '수정이 완료되었습니다.'});
-})
-
-adminRouter.post('/subCategory/delete', isAuth, async(req, res) => {
-    const subId = req.body.subId;
-    categoryService.deleteSubCategory(subId);
-
-    res.render('admin/alert', {success: '삭제가 완료되었습니다.'});
-})
-
-adminRouter.get('/write', isAuth, async (req, res) => {
-    const subCategoryList = await categoryService.subCategoryList();
-
-    res.render('admin/write', {
-        subCategoryList: subCategoryList
-    });
-})
-
-adminRouter.get('/select/subCategory', isAuth, async(req, res) => {
-    const mainId = req.query.mainId;
-    const result = await categoryService.selectSubCategoryList(mainId);
-    res.json(result);
-})
-
-adminRouter.post('/post/add', isAuth, async(req, res) => {
-    const { title, content, mainId, subId } = req.body;
-    console.log("TEST > ", req.body);
-
+adminRouter.get('/list/category', authenticateJwt, async(req, res) => {
     try {
-        await postsService.createPost(title, content, mainId, subId);
+        const response = categoryService.getCategoryList();
 
-        res.render('admin/alert', {success: '게시물 업로드가 완료되었습니다.'});
-    } catch(err) {
-        console.log('게시물 업로드 에러 : ', err);
-        res.render('admin/alert', {success: '게시물 업로드 도중 에러가 발생했습니다.'});
-    }
-})
-
-
-adminRouter.get('/:id/edit', isAuth, async(req, res) => {
-    const postId = req.params.id;
-    const post = await postsService.selectPost(postId);
-
-    const subCategoryId = post.subId;
-    const subCategoryInfo = await categoryService.getSubCategoryIdAndTitle(subCategoryId);
-
-    res.render('admin/edit', {
-        postId: post.id,
-        title: post.title,
-        content: post.content,
-        subCategoryInfo: subCategoryInfo,
-    });
-})
-
-adminRouter.post('/:id/edit', isAuth, async(req, res) => {
-    try {
-        const postId = req.params.id;
-        console.log("TEST > ", req.body);
-        const { title, content } = req.body;
-
-        await postsService.editPost(title, content, postId);
-
-        res.render('admin/alert', {success: '수정이 완료되었습니다.'});
+        res.json(response).status(200).send();
     } catch (err) {
-        console.log("게시물 수정도중 에러 발생 : ", err);
+        console.log('[API] /api/admin/list/category Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
     }
 })
 
+adminRouter.post('/add/category', authenticateJwt, async(req, res) => {
+    const title = req.body.title;
+    
+    try {
+        await categoryService.addCategory(title);
+        res.status(200).send('카테고리 등록 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/add/category Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+adminRouter.post('/update/category', authenticateJwt, async(req, res) => {
+    const { id, title } = req.body;
+
+    try {
+        await categoryService.updateCategory(title, id);
+        res.status(200).send('카테고리 수정 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/update/category Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+adminRouter.post('/delete/category', authenticateJwt, async(req, res) => {
+    const id = req.body.id;
+
+    try {
+        await categoryService.deleteCategory(id);
+        res.status(200).send('카테고리 삭제 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/delete/category Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+// [API] Post
+
+adminRouter.get('/list/post', authenticateJwt, async (req, res) => {
+    try {
+        const response = await postsService.getPostList();
+
+        res.json(response).status(200).send();
+    } catch (err) {
+        console.log('[API] /api/admin/list/post Error : ', err);
+    }
+})
+
+adminRouter.post('/add/post', authenticateJwt, async (req, res) => {
+    const { categoryId, title, content } = req.body;
+
+    try {
+        await postsService.createPost(title, content, categoryId);
+
+        res.status(200).send('게시글 작성 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/add/post Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+adminRouter.post('/update/post', authenticateJwt, async (req, res) => {
+    const { id, title, content } = req.body;
+
+    try {
+        await postsService.editPost(title, content, id);
+
+        res.status(200).send('게시글 수정 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/update/post Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+adminRouter.post('/delete/post', authenticateJwt, async (req, res) => {
+    const id = req.body.id;
+
+    try {
+        await postsService.deletePost(id);
+
+        res.status(200).send('게시글 삭제 완료');
+    } catch (err) {
+        console.log('[API] /api/admin/delete/post Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+adminRouter.get('/:id', authenticateJwt, async (req, res) => {
+    const id = req.body.id;
+
+    try {
+        const response = await postsService.findOnePost(id);
+
+        res.json(response).status(200).send();
+    } catch (err) {
+        console.log('[API] /api/admin/:id Error : ', err);
+        res.status(400).send('에러가 발생했습니다. : ', err);
+    }
+})
+
+// ref
 
 adminRouter.post('/image-upload', upload.single('upload') ,async(req, res) => {
     try {
@@ -138,7 +152,6 @@ adminRouter.post('/image-upload', upload.single('upload') ,async(req, res) => {
     
         const data = await paralleUploadS3.done();
     
-        console.log('3');
         res.send({
             message: '업로드 성공',
             filename: data.Key,
@@ -147,28 +160,6 @@ adminRouter.post('/image-upload', upload.single('upload') ,async(req, res) => {
     } catch (err) {
         console.error("Image Upload Error : ", err);
         res.status(500).send('업로드 에러')
-    }
-})
-
-adminRouter.get('/posts', isAuth, async(req, res) => {
-    const list = await postsService.getPosts();
-    const categories = await categoryService.sideMenuList();
-
-    res.render('admin/posts-admin', {
-        categories: categories,
-        subCategoryList: list
-    });
-})
-
-adminRouter.get('/:id/post/delete', isAuth, async(req, res) => {
-    const id = req.params.id;
-
-    try {
-        await postsService.deletePost(id);
-
-        res.render('admin/alert', {success: '게시물이 삭제되었습니다.'});
-    } catch (err) {
-        console.log(err);
     }
 })
 
