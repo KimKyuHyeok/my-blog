@@ -44,9 +44,14 @@ export class CategoryService {
     // Board 작업 후 카테고리 삭제 시 Board 또한 삭제 처리될 수 있게 수정 작업 예정
     async delete(dto: DeleteCategoryDto) {
         try {
-            await this.prisma.category.delete({
-                where: { id: dto.id }
-            })
+            await this.prisma.$transaction([
+                this.prisma.board.deleteMany({
+                    where: { categoryId: dto.id }
+                }),
+                this.prisma.category.delete({
+                    where: { id: dto.id }
+                })
+            ])
 
             return '카테고리가 성공적으로 삭제되었습니다.'
         } catch (error) {
