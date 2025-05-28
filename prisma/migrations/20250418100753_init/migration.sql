@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Board` MODIFY `views` INTEGER NOT NULL DEFAULT 0;
